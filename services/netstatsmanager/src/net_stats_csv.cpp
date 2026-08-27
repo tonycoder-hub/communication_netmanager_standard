@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "net_stats_csv.h"
+#include "parse_csv_int.h"
 
 #include "net_mgr_log_wrapper.h"
 
@@ -147,7 +148,9 @@ bool NetStatsCsv::CorrectedIfacesStats(const std::string &iface,
     while (iface_file >> row) {
         if (iface.compare(row[static_cast<uint32_t>(IfaceStatsCsvColumn::IFACE_NAME)]) == 0) {
             uint32_t timeCloumn = static_cast<uint32_t>(IfaceStatsCsvColumn::TIME);
-            rowTime = static_cast<uint32_t>(std::stoi(row[(timeCloumn)]));
+            if (!ParseCsvUint32(row[(timeCloumn)], rowTime)) {
+                continue;
+            }
             if (calStartTime <= rowTime && rowTime  <= calEndTime) {
                 correctedFlg = true;
                 continue;
@@ -239,7 +242,11 @@ bool NetStatsCsv::UpdateUidStats()
     std::string iface = "eth0";
     CSVRow row;
     while (uidCsvFile >> row) {
-        uint32_t uid = static_cast<std::uint32_t>(std::stoi(row[static_cast<uint32_t>(UidCsvColumn::UID)]));
+        uint32_t uid = 0;
+        if (!ParseCsvUint32(row[static_cast<uint32_t>(UidCsvColumn::UID)], uid)) {
+            NETMGR_LOG_E("invalid uid in uid.csv");
+            return false;
+        }
         if (!UpdateUidStatsCsv(uid, iface)) {
             NETMGR_LOG_E("UpdateUidStatsCsv failed, uid[%{public}d], ifaceName[%{public}s]", uid, iface.c_str());
             return false;
@@ -289,7 +296,9 @@ uint32_t NetStatsCsv::GetIfaceCalculateTime(const std::string &iface, uint32_t t
     uint32_t columnTime = 0;
     while (iface_file >> row) {
         if (iface.compare(row[static_cast<uint32_t>(IfaceStatsCsvColumn::IFACE_NAME)]) == 0) {
-            columnTime = static_cast<uint32_t>(std::stoi(row[static_cast<uint32_t>(IfaceStatsCsvColumn::TIME)]));
+            if (!ParseCsvUint32(row[static_cast<uint32_t>(IfaceStatsCsvColumn::TIME)], columnTime)) {
+                continue;
+            }
             if (time <= columnTime) {
                 return columnTime;
             }
@@ -306,7 +315,9 @@ uint32_t NetStatsCsv::GetUidCalculateTime(uint32_t uid, const std::string &iface
     while (uid_file >> row) {
         if ((std::to_string(uid).compare(row[static_cast<uint32_t>(UidStatCsvColumn::UID)]) == 0) &&
             (iface.compare(row[static_cast<uint32_t>(UidStatCsvColumn::IFACE_NAME)]) == 0)) {
-            columnTime = static_cast<uint32_t>(std::stoi(row[static_cast<uint32_t>(UidStatCsvColumn::TIME)]));
+            if (!ParseCsvUint32(row[static_cast<uint32_t>(UidStatCsvColumn::TIME)], columnTime)) {
+                continue;
+            }
             if (time <= columnTime) {
                 return columnTime;
             }
@@ -344,13 +355,18 @@ void NetStatsCsv::GetPeriodStats(const NetStatsInfo &startStats, const NetStatsI
 void NetStatsCsv::GetCalculateStatsInfo(const CSVRow &row, uint32_t calStartTime, uint32_t calEndTime,
     uint32_t timeCloumn, std::vector<NetStatsInfo> &vecRow)
 {
-    uint32_t rowTime = static_cast<uint32_t>(std::stoi(row[(timeCloumn)]));
+    uint32_t rowTime = 0;
+    if (!ParseCsvUint32(row[(timeCloumn)], rowTime)) {
+        return;
+    }
     if (calStartTime <= rowTime && rowTime  <= calEndTime) {
         uint32_t rxColumn = static_cast<uint32_t>(++timeCloumn);
         uint32_t txCloumn = static_cast<uint32_t>(++timeCloumn);
         NetStatsInfo statsRow;
-        statsRow.rxBytes_ = static_cast<int64_t>(std::stoi(row[rxColumn]));
-        statsRow.txBytes_ = static_cast<int64_t>(std::stoi(row[txCloumn]));
+        if (!ParseCsvInt64(row[rxColumn], statsRow.rxBytes_) ||
+            !ParseCsvInt64(row[txCloumn], statsRow.txBytes_)) {
+            return;
+        }
         vecRow.push_back(statsRow);
     }
 }
